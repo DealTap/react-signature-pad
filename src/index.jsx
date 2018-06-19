@@ -1,6 +1,6 @@
 // @flow
+/* eslint-disable import/no-extraneous-dependencies */
 import React from 'react';
-
 import Bezier from './bezier';
 import DefinePoint from './point';
 
@@ -40,9 +40,10 @@ type SignatureProps = {
   dotSize: Number,
   onBegin: ?Function,
   onEnd: ?Function,
-  classes: Object,
   width: number,
   height: number,
+  clearFunction: Function,
+  downloadFunction: Function,
 };
 
 type SignatureState = {
@@ -65,8 +66,8 @@ export default class SignaturePadC extends React.Component<SignatureProps, Signa
 
   componentDidMount() {
     this.ctx = this.canvas.getContext('2d');
-    this.props.clearFunction(this.clear)
-    this.props.downloadFunction(this.download)
+    this.props.clearFunction(this.clear);
+    this.props.downloadFunction(this.download);
     this.clear();
 
     this.handleMouseEvents();

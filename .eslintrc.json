@@ -1,0 +1,71 @@
+{
+  "globals": {
+    "shallow": false,
+    "mount": false,
+    "render": false
+  },
+  "extends": [
+    "airbnb",
+    "plugin:flowtype/recommended"
+  ],
+  "env": {
+    "browser": true,
+    "jest": true
+  },
+  "parser": "babel-eslint",
+  "plugins": [
+    "babel",
+    "flowtype"
+  ],
+  "rules": {
+    "babel/no-invalid-this": 1,
+    "jsx-a11y/anchor-is-valid": [
+      "error",
+      {
+        "components": [
+          "Link"
+        ],
+        "specialLink": [
+          "to"
+        ],
+        "aspects": [
+          "noHref",
+          "invalidHref"
+        ]
+      }
+    ],
+    "react/no-multi-comp": 0,
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": false
+      }
+    ],
+    "import/prefer-default-export": 0,
+    "no-return-assign": [
+      "error",
+      "except-parens"
+    ],
+    "no-multiple-empty-lines": [
+      2,
+      {
+        "max": 1,
+        "maxEOF": 0,
+        "maxBOF": 0
+      }
+    ],
+    "no-invalid-this": 0,
+    "max-len": [
+      "error",
+      {
+        "code": 150
+      }
+    ],
+    "padded-blocks": [
+      "error",
+      {
+        "classes": "always"
+      }
+    ]
+  }
+}
