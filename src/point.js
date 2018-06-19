@@ -1,17 +1,14 @@
-export default class Point {
+const distanceTo = (start, x, y) => Math.sqrt(((x - start.x) ** 2) + ((y - start.y) ** 2));
 
-  constructor(x, y, time) {
-    this.x = x;
-    this.y = y;
-    this.time = time || new Date().getTime();
-  }
+export default function Point(x, y, time) {
+  this.x = x;
+  this.y = y;
+  this.time = time || new Date().getTime();
 
-  velocityFrom(start) {
-    return (this.time !== start.time) ? this.distanceTo(start) / (this.time - start.time) : 1;
+  return {
+    velocityFrom: start => ((this.time !== start.time) ? distanceTo(start, this.x, this.y) / (this.time - start.time) : 1),
+    x: this.x,
+    y: this.y,
+    time: this.time,
   };
-
-  distanceTo(start) {
-    return Math.sqrt(Math.pow(this.x - start.x, 2) + Math.pow(this.y - start.y, 2));
-  };
-
 }

@@ -1,38 +1,29 @@
 {
   "name": "react-signature-pad",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "A signature pad implementation for react.",
-  "main": "lib/app.js",
+  "source": "src/index.js",
+  "main": "lib/index.js",
   "scripts": {
-    "test": "webpack && npm pack",
-    "start": "webpack-dev-server --hot --inline",
-    "dist": "webpack -p --config webpack.production.config.js"
+    "build": "parcel build src/index.js -d lib/",
+    "start": "parcel index.html"
   },
-  "keywords": [
-    "react",
-    "react-component",
-    "signature",
-    "form",
-    "ui"
-  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/blackjk3/react-signature-pad.git"
+    "url": "https://github.com/DealTap/react-signature-pad.git"
   },
-  "author": "Jason Kadrmas",
-  "license": "MIT",
   "devDependencies": {
-    "babel-core": "^5.6.15",
-    "babel-loader": "^5.3.1",
-    "node-libs-browser": "^0.5.2",
-    "react": "^0.14.3",
-    "react-dom": "^0.14.3",
-    "react-hot-loader": "^1.2.7",
-    "webpack": "^1.10.1",
-    "webpack-dev-server": "^1.10.1"
-  },
-  "peerDependencies": {
-    "react": "^0.14.0 || ^15.0.0",
-    "react-dom": "^0.14.0 || ^15.0.0"
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-plugin-syntax-object-rest-spread": "^6.13.0",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-flow": "^6.23.0",
+    "babel-preset-react": "^6.24.1",
+    "node-libs-browser": "^2.1.0",
+    "parcel-bundler": "^1.9.1",
+    "react": "~16.3.1",
+    "react-dom": "~16.3.1",
+    "react-hot-loader": "^4.3.3"
   }
 }

@@ -1,214 +1,274 @@
-import React from "react";
-import Bezier from "./bezier";
-import Point from "./point"
+// @flow
+import React from 'react';
 
-export default class SignaturePad extends React.Component {
+import Bezier from './bezier';
+import DefinePoint from './point';
 
-  constructor(props) {
-    super(props);
+function calculateCurveControlPoints(s1, s2, s3) {
+  const dx1 = s1.x - s2.x;
+  const dy1 = s1.y - s2.y;
+  const dx2 = s2.x - s3.x;
+  const dy2 = s2.y - s3.y;
 
-    this.velocityFilterWeight = this.props.velocityFilterWeight || 0.7;
-    this.minWidth = this.props.minWidth || 0.5;
-    this.maxWidth = this.props.maxWidth || 2.5;
-    this.dotSize = this.props.dotSize || function () {
-        return (this.minWidth + this.maxWidth) / 2;
-    };
-    this.penColor = this.props.penColor || "black";
-    this.backgroundColor = this.props.backgroundColor || "rgba(0,0,0,0)";
-    this.onEnd = this.props.onEnd;
-    this.onBegin = this.props.onBegin;
+  const m1 = { x: (s1.x + s2.x) / 2.0, y: (s1.y + s2.y) / 2.0 };
+  const m2 = { x: (s2.x + s3.x) / 2.0, y: (s2.y + s3.y) / 2.0 };
+
+  const l1 = Math.sqrt((dx1 * dx1) + (dy1 * dy1));
+  const l2 = Math.sqrt((dx2 * dx2) + (dy2 * dy2));
+
+  const dxm = (m1.x - m2.x);
+  const dym = (m1.y - m2.y);
+
+  const k = l2 / (l1 + l2);
+  const cm = { x: m2.x + (dxm * k), y: m2.y + (dym * k) };
+
+  const tx = s2.x - cm.x;
+  const ty = s2.y - cm.y;
+
+  return {
+    c1: new DefinePoint(m1.x + tx, m1.y + ty),
+    c2: new DefinePoint(m2.x + tx, m2.y + ty),
+  };
+}
+
+type SignatureProps = {
+  minWidth: number,
+  maxWidth: number,
+  velocityFilterWeight: number,
+  backgroundColor: string,
+  penColor: string,
+  dotSize: Number,
+  onBegin: ?Function,
+  onEnd: ?Function,
+  classes: Object,
+  width: number,
+  height: number,
+};
+
+type SignatureState = {
+  mouseButtonDown: boolean,
+};
+
+export default class SignaturePadC extends React.Component<SignatureProps, SignatureState> {
+
+  static defaultProps = {
+    width: 400,
+    height: 250,
+    penColor: '#555555',
+    clearFunction: () => {},
+    downloadFunction: () => {},
+  }
+
+  state = {
+    mouseButtonDown: false,
   }
 
   componentDidMount() {
-    this._canvas = this.refs.cv;
-    this._ctx = this._canvas.getContext("2d");
+    this.ctx = this.canvas.getContext('2d');
+    this.props.clearFunction(this.clear)
+    this.props.downloadFunction(this.download)
     this.clear();
 
-    this._handleMouseEvents();
-    this._handleTouchEvents();
-    this._resizeCanvas();
+    this.handleMouseEvents();
+    this.handleTouchEvents();
+    this.resizeCanvas();
   }
 
   componentWillUnmount() {
     this.off();
   }
 
-  clear(e) {
-    if(e) {
+  ctx: HTMLCanvasElement.getContext;
+  canvas: HTMLCanvasElement;
+  clear: Function;
+  lastWidth: number;
+  lastVelocity: number;
+  points: Array<any>;
+
+  minWidth = this.props.minWidth || 0.5;
+  maxWidth = this.props.maxWidth || 2;
+  dotSize = this.props.dotSize || function dotSizeDefault() {
+    return (this.minWidth + this.maxWidth) / 2;
+  }
+  backgroundColor = this.props.backgroundColor || 'rgba(0,0,0,0)';
+  velocityFilterWeight = this.props.velocityFilterWeight || 0.7;
+
+  clear = (e: ?Object) => {
+    if (e) {
       e.preventDefault();
     }
-    var ctx = this._ctx,
-        canvas = this._canvas;
+    const { canvas, ctx } = this;
 
     ctx.fillStyle = this.backgroundColor;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    this._reset();
+    this.reset();
   }
 
-  toDataURL(imageType, quality) {
-    var canvas = this._canvas;
-    return canvas.toDataURL.apply(canvas, arguments);
+  toDataURL = (...rest: any) => {
+    const { canvas } = this;
+    return canvas.toDataURL(...rest);
   }
 
-  fromDataURL(dataUrl) {
-    var self = this,
-        image = new Image(),
-        ratio = window.devicePixelRatio || 1,
-        width = this._canvas.width / ratio,
-        height = this._canvas.height / ratio;
+  fromDataURL = (dataUrl: string) => {
+    const self = this;
+    const image = new Image();
+    const ratio = window.devicePixelRatio || 1;
+    const width = this.canvas.width / ratio;
+    const height = this.canvas.height / ratio;
 
-    this._reset();
+    this.reset();
     image.src = dataUrl;
-    image.onload = function () {
-      self._ctx.drawImage(image, 0, 0, width, height);
+    image.onload = function onLoadImage() {
+      self.ctx.drawImage(image, 0, 0, width, height);
     };
-    this._isEmpty = false;
+    this.isEmpty = false;
   }
 
-  isEmpty() {
-    return this._isEmpty;
-  }
+  isEmpty = () => this.isEmpty
 
-  _resizeCanvas() {
-    var ctx = this._ctx,
-        canvas = this._canvas;
+  resizeCanvas = () => {
+    const { ctx, canvas } = this;
     // When zoomed out to less than 100%, for some very strange reason,
     // some browsers report devicePixelRatio as less than 1
     // and only part of the canvas is cleared then.
-    var ratio =  Math.max(window.devicePixelRatio || 1, 1);
+    // const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const ratio = 1;
     canvas.width = canvas.offsetWidth * ratio;
     canvas.height = canvas.offsetHeight * ratio;
 
-    ctx.scale(ratio, ratio);
-    this._isEmpty = true;
+    ctx.scale(1, 1);
+    this.isEmpty = true;
   }
 
-  _reset() {
+  reset = () => {
     this.points = [];
-    this._lastVelocity = 0;
-    this._lastWidth = (this.minWidth + this.maxWidth) / 2;
-    this._isEmpty = true;
-    this._ctx.fillStyle = this.penColor;
-  };
-
-  _handleMouseEvents() {
-    this._mouseButtonDown = false;
-
-    this._canvas.addEventListener("mousedown", this._handleMouseDown.bind(this));
-    this._canvas.addEventListener("mousemove", this._handleMouseMove.bind(this));
-    document.addEventListener("mouseup", this._handleMouseUp.bind(this));
-    window.addEventListener("resize", this._resizeCanvas.bind(this));
-  };
-
-  _handleTouchEvents() {
-    // Pass touch events to canvas element on mobile IE.
-    this._canvas.style.msTouchAction = 'none';
-
-    this._canvas.addEventListener("touchstart", this._handleTouchStart.bind(this));
-    this._canvas.addEventListener("touchmove", this._handleTouchMove.bind(this));
-    document.addEventListener("touchend", this._handleTouchEnd.bind(this));
-  };
-
-  off() {
-    this._canvas.removeEventListener("mousedown", this._handleMouseDown);
-    this._canvas.removeEventListener("mousemove", this._handleMouseMove);
-    document.removeEventListener("mouseup", this._handleMouseUp);
-
-    this._canvas.removeEventListener("touchstart", this._handleTouchStart);
-    this._canvas.removeEventListener("touchmove", this._handleTouchMove);
-    document.removeEventListener("touchend", this._handleTouchEnd);
-
-    window.removeEventListener("resize", this._resizeCanvas);
+    this.lastVelocity = 0;
+    this.lastWidth = (this.minWidth + this.maxWidth) / 2;
+    this.isEmpty = true;
+    this.ctx.fillStyle = this.props.penColor;
   }
 
-  _handleMouseDown(event) {
-    if (event.which === 1) {
-      this._mouseButtonDown = true;
-      this._strokeBegin(event);
+  handleMouseEvents = () => {
+    this.setState({
+      mouseButtonDown: false,
+    });
+
+    this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+  }
+
+  handleTouchEvents = () => {
+    // Pass touch events to canvas element on mobile IE.
+    this.canvas.style.msTouchAction = 'none';
+
+    this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this));
+    this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this));
+    document.addEventListener('touchend', this.handleTouchEnd.bind(this));
+  }
+
+  off = () => {
+    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+    this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseup', this.handleMouseUp);
+
+    this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+    this.canvas.removeEventListener('touchmove', this.handleTouchMove);
+    document.removeEventListener('touchend', this.handleTouchEnd);
+  }
+
+  handleMouseDown = (event: SyntheticMouseEvent<EventTarget>) => {
+    if (event.button === 0) {
+      this.setState({
+        mouseButtonDown: true,
+      });
+      this.strokeBegin(event);
     }
-  };
+  }
 
-  _handleMouseMove(event) {
-    if (this._mouseButtonDown) {
-      this._strokeUpdate(event);
+  handleMouseMove = (event: SyntheticMouseEvent<EventTarget>) => {
+    if (this.state.mouseButtonDown) {
+      this.strokeUpdate(event);
     }
-  };
+  }
 
-  _handleMouseUp(event) {
-      if (event.which === 1 && this._mouseButtonDown) {
-          this._mouseButtonDown = false;
-          this._strokeEnd(event);
-      }
-  };
-
-  _handleTouchStart(event) {
-      var touch = event.changedTouches[0];
-      this._strokeBegin(touch);
-  };
-
-  _handleTouchMove(event) {
-      // Prevent scrolling.
-      event.preventDefault();
-
-      var touch = event.changedTouches[0];
-      this._strokeUpdate(touch);
-  };
-
-  _handleTouchEnd(event) {
-      var wasCanvasTouched = event.target === this._canvas;
-      if (wasCanvasTouched) {
-          this._strokeEnd(event);
-      }
-  };
-
-  _strokeUpdate(event) {
-    var point = this._createPoint(event);
-    this._addPoint(point);
-  };
-
-  _strokeBegin(event) {
-    this._reset();
-    this._strokeUpdate(event);
-    if (typeof this.onBegin === 'function') {
-      this.onBegin(event);
+  handleMouseUp = (event: SyntheticMouseEvent<EventTarget>) => {
+    if (event.button === 0 && this.state.mouseButtonDown) {
+      this.setState({
+        mouseButtonDown: false,
+      });
+      this.strokeEnd(event);
     }
-  };
+  }
 
-  _strokeDraw(point) {
-    var ctx = this._ctx,
-        dotSize = typeof(this.dotSize) === 'function' ? this.dotSize() : this.dotSize;
+  handleTouchStart = (event: SyntheticTouchEvent<EventTarget>) => {
+    const touch = event.changedTouches[0];
+    this.strokeBegin(touch);
+  }
+
+  handleTouchMove(event: SyntheticTouchEvent<EventTarget>) {
+    // Prevent scrolling.
+    event.preventDefault();
+
+    const touch = event.changedTouches[0];
+    this.strokeUpdate(touch);
+  }
+
+  handleTouchEnd(event: SyntheticTouchEvent<EventTarget>) {
+    const wasCanvasTouched = event.target === this.canvas;
+    if (wasCanvasTouched) {
+      this.strokeEnd(event);
+    }
+  }
+
+  strokeUpdate(event: Object) {
+    const point = this.createPoint(event);
+    this.addPoint(point);
+  }
+
+  strokeBegin(event: Object) {
+    this.reset();
+    this.strokeUpdate(event);
+    if (typeof this.props.onBegin === 'function') {
+      this.props.onBegin(event);
+    }
+  }
+
+  strokeDraw(point: Object) {
+    const { ctx } = this;
+    const dotSize = typeof (this.dotSize) === 'function' ? this.dotSize() : this.dotSize;
 
     ctx.beginPath();
-    this._drawPoint(point.x, point.y, dotSize);
+    this.drawPoint(point.x, point.y, dotSize);
     ctx.closePath();
     ctx.fill();
-  };
+  }
 
-  _strokeEnd(event) {
-    var canDrawCurve = this.points.length > 2,
-        point = this.points[0];
+  strokeEnd = (event: Object) => {
+    const canDrawCurve = this.points.length > 2;
+    const point = this.points[0];
 
     if (!canDrawCurve && point) {
-      this._strokeDraw(point);
+      this.strokeDraw(point);
     }
-    if (typeof this.onEnd === 'function') {
-      this.onEnd(event);
+    if (typeof this.props.onEnd === 'function') {
+      this.props.onEnd(event);
     }
-  };
+  }
 
-  _createPoint(event) {
-    var rect = this._canvas.getBoundingClientRect();
-    return new Point(
+  createPoint = (event: Object) => {
+    const rect = this.canvas.getBoundingClientRect();
+    const definedPoint = new DefinePoint(
       event.clientX - rect.left,
-      event.clientY - rect.top
+      event.clientY - rect.top,
     );
-  };
+    return definedPoint;
+  }
 
-  _addPoint(point) {
-    var points = this.points,
-        c2, c3,
-        curve, tmp;
+  addPoint = (point: Object) => {
+    const { points } = this;
+    let curve;
 
     points.push(point);
 
@@ -217,12 +277,15 @@ export default class SignaturePad extends React.Component {
       // by copying the first point to the beginning.
       if (points.length === 3) points.unshift(points[0]);
 
-      tmp = this._calculateCurveControlPoints(points[0], points[1], points[2]);
-      c2 = tmp.c2;
-      tmp = this._calculateCurveControlPoints(points[1], points[2], points[3]);
-      c3 = tmp.c1;
-      curve = new Bezier(points[1], c2, c3, points[2]);
-      this._addCurve(curve);
+      const { c2 } = calculateCurveControlPoints(points[0], points[1], points[2]);
+      const { c1 } = calculateCurveControlPoints(points[1], points[2], points[3]);
+      curve = new Bezier({
+        startPoint: points[1],
+        control1: c2,
+        control2: c1,
+        endPoint: points[2],
+      });
+      this.addCurve(curve);
 
       // Remove the first element from the list,
       // so that we always have no more than 4 points in points array.
@@ -230,104 +293,101 @@ export default class SignaturePad extends React.Component {
     }
   }
 
-  _calculateCurveControlPoints(s1, s2, s3) {
-    var dx1 = s1.x - s2.x, dy1 = s1.y - s2.y,
-        dx2 = s2.x - s3.x, dy2 = s2.y - s3.y,
-
-        m1 = {x: (s1.x + s2.x) / 2.0, y: (s1.y + s2.y) / 2.0},
-        m2 = {x: (s2.x + s3.x) / 2.0, y: (s2.y + s3.y) / 2.0},
-
-        l1 = Math.sqrt(dx1*dx1 + dy1*dy1),
-        l2 = Math.sqrt(dx2*dx2 + dy2*dy2),
-
-        dxm = (m1.x - m2.x),
-        dym = (m1.y - m2.y),
-
-        k = l2 / (l1 + l2),
-        cm = {x: m2.x + dxm*k, y: m2.y + dym*k},
-
-        tx = s2.x - cm.x,
-        ty = s2.y - cm.y;
-
-    return {
-      c1: new Point(m1.x + tx, m1.y + ty),
-      c2: new Point(m2.x + tx, m2.y + ty)
-    };
-  };
-
-  _addCurve(curve) {
-    var startPoint = curve.startPoint,
-        endPoint = curve.endPoint,
-        velocity, newWidth;
+  addCurve = (curve: Object) => {
+    const { startPoint, endPoint } = curve;
+    let velocity;
 
     velocity = endPoint.velocityFrom(startPoint);
-    velocity = this.velocityFilterWeight * velocity
-        + (1 - this.velocityFilterWeight) * this._lastVelocity;
+    velocity = (this.velocityFilterWeight * velocity)
+        + ((1 - this.velocityFilterWeight) * this.lastVelocity);
 
-    newWidth = this._strokeWidth(velocity);
-    this._drawCurve(curve, this._lastWidth, newWidth);
+    const newWidth = this.strokeWidth(velocity);
+    this.drawCurve(curve, this.lastWidth, newWidth);
 
-    this._lastVelocity = velocity;
-    this._lastWidth = newWidth;
-  };
+    this.lastVelocity = velocity;
+    this.lastWidth = newWidth;
+  }
 
-  _drawPoint(x, y, size) {
-    var ctx = this._ctx;
+  drawPoint = (x: Number, y: Number, size: Number) => {
+    const { ctx } = this;
 
     ctx.moveTo(x, y);
     ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-    this._isEmpty = false;
-  };
+    this.isEmpty = false;
+  }
 
-  _drawCurve(curve, startWidth, endWidth) {
-    var ctx = this._ctx,
-        widthDelta = endWidth - startWidth,
-        drawSteps, width, i, t, tt, ttt, u, uu, uuu, x, y;
+  drawCurve = (curve: Object, startWidth: number, endWidth: number) => {
+    const { ctx } = this;
+    const widthDelta = endWidth - startWidth;
+    let width;
+    let i;
+    let t;
+    let tt;
+    let ttt;
+    let u;
+    let uu;
+    let uuu;
+    let x;
+    let y;
 
-    drawSteps = Math.floor(curve.length());
+    const drawSteps = Math.floor(curve.length());
     ctx.beginPath();
-    for (i = 0; i < drawSteps; i++) {
-        // Calculate the Bezier (x, y) coordinate for this step.
-        t = i / drawSteps;
-        tt = t * t;
-        ttt = tt * t;
-        u = 1 - t;
-        uu = u * u;
-        uuu = uu * u;
+    for (i = 0; i < drawSteps; i += 1) {
+      // Calculate the Bezier (x, y) coordinate for this step.
+      t = i / drawSteps;
+      tt = t * t;
+      ttt = tt * t;
+      u = 1 - t;
+      uu = u * u;
+      uuu = uu * u;
 
-        x = uuu * curve.startPoint.x;
-        x += 3 * uu * t * curve.control1.x;
-        x += 3 * u * tt * curve.control2.x;
-        x += ttt * curve.endPoint.x;
+      x = uuu * curve.startPoint.x;
+      x += 3 * uu * t * curve.control1.x;
+      x += 3 * u * tt * curve.control2.x;
+      x += ttt * curve.endPoint.x;
 
-        y = uuu * curve.startPoint.y;
-        y += 3 * uu * t * curve.control1.y;
-        y += 3 * u * tt * curve.control2.y;
-        y += ttt * curve.endPoint.y;
+      y = uuu * curve.startPoint.y;
+      y += 3 * uu * t * curve.control1.y;
+      y += 3 * u * tt * curve.control2.y;
+      y += ttt * curve.endPoint.y;
 
-        width = startWidth + ttt * widthDelta;
-        this._drawPoint(x, y, width);
+      width = startWidth + (ttt * widthDelta);
+      this.drawPoint(x, y, width);
     }
     ctx.closePath();
     ctx.fill();
-  };
+  }
 
-  _strokeWidth (velocity) {
+  strokeWidth(velocity: number) {
     return Math.max(this.maxWidth / (velocity + 1), this.minWidth);
-  };
+  }
+
+  download = () => {
+    const el = document.createElement('a');
+    el.style.display = 'none';
+    el.setAttribute('href', this.toDataURL('image/png', 0.9));
+    el.setAttribute('download', 'canvasDL');
+    if (document.body != null) {
+      document.body.appendChild(el);
+      el.click();
+    }
+    if (document.body != null) {
+      document.body.removeChild(el);
+    }
+  }
 
   render() {
+    const { width, height } = this.props;
     return (
-      <div id="signature-pad" className="m-signature-pad">
-        <div className="m-signature-pad--body">
-          <canvas ref="cv"></canvas>
-        </div>
-        { this.props.clearButton &&
-          <div className="m-signature-pad--footer">
-            <button className="btn btn-default button clear" onClick={this.clear.bind(this)}>Clear</button>
-          </div>
-        }
-      </div>
+      <canvas
+        width={width}
+        height={height}
+        ref={(c) => {
+          if (c) {
+            this.canvas = c;
+          }
+        }}
+      />
     );
   }
 
